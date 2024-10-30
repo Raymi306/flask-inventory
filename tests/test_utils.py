@@ -1,21 +1,14 @@
 import pytest
 
-from app.utils import camel_case_split
+from app.utils import snake_to_camel
 
 
 @pytest.mark.parametrize(
     "input_string, expected",
     (
-        ("XYZCamelCase", ["XYZ", "Camel", "Case"]),
-        ("CamelCaseXYZ", ["Camel", "Case", "XYZ"]),
-        ("CamelCaseXYZa", ["Camel", "Case", "XY", "Za"]),
-        ("XYZCamelCaseXYZ", ["XYZ", "Camel", "Case", "XYZ"]),
-        ("CamelCaseWordT", ["Camel", "Case", "Word", "T"]),
-        ("CamelCaseWordTa", ["Camel", "Case", "Word", "Ta"]),
-        ("Ta", ["Ta"]),
-        ("T", ["T"]),
-        ("", []),
+        ("foo_bar_baz", "FooBarBaz"),
+        ("foo", "Foo"),
     ),
 )
-def test_camel_case_splitter(input_string, expected):
-    assert camel_case_split(input_string) == expected
+def test_snake_to_camel(input_string, expected):
+    assert snake_to_camel(input_string) == expected
