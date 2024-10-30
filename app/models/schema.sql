@@ -5,5 +5,6 @@ CREATE TABLE user (
     username VARCHAR(100) NOT NULL UNIQUE,
     password_hash CHAR(97) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    last_login TIMESTAMP
+    last_login TIMESTAMP,
+    password_reset_required BOOLEAN NOT NULL
 );

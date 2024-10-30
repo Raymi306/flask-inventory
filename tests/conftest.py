@@ -29,7 +29,7 @@ def cli_runner(app):
 def new_user(app):
     created_users = []
 
-    def _inner(username="user", password="password"):
+    def _inner(username="user", password="niceandlonggoodpassword"):
         created_users.append(username)
         with app.app_context():
             return user_model.new_user(username, password)

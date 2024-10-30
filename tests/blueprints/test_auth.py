@@ -11,14 +11,16 @@ from app.models.user import get_user_by_name
 class TestLogin:
     @staticmethod
     def test_success(app, client, new_user):
-        new_user(username="user", password="password")
+        username = "user"
+        password = "niceandlonggoodpassword"
+        new_user(username, password)
 
         with client:
             response = client.post(
                 "/auth/login",
                 data={
-                    "username": "user",
-                    "password": "password",
+                    "username": username,
+                    "password": password,
                 },
             )
             assert response.status_code == HTTPStatus.NO_CONTENT
@@ -30,8 +32,8 @@ class TestLogin:
             response = client.post(
                 "/auth/login",
                 data={
-                    "username": "user",
-                    "password": "password",
+                    "username": username,
+                    "password": password,
                 },
             )
             assert response.status_code == HTTPStatus.NO_CONTENT
@@ -41,37 +43,39 @@ class TestLogin:
 
     @staticmethod
     def test_hasher_changed(app, client, new_user):
+        username = "user"
+        password = "niceandlonggoodpassword"
         with patch("app.models.user.PASSWORD_HASHER") as mock_hasher:
             hasher = PasswordHasher(memory_cost=100)
             mock_hasher.hash = hasher.hash
-            new_user(username="user", password="password")
+            new_user(username, password)
         with app.app_context():
-            original_user = get_user_by_name("user")
+            original_user = get_user_by_name(username)
             with client:
                 response = client.post(
                     "/auth/login",
                     data={
-                        "username": "user",
-                        "password": "password",
+                        "username": username,
+                        "password": password,
                     },
                 )
                 assert response.status_code == HTTPStatus.NO_CONTENT
                 assert b"" == response.data
                 assert session["user_id"]
-            new_user = get_user_by_name("user")
+            new_user = get_user_by_name(username)
             assert original_user["password_hash"] != new_user["password_hash"]
             with client:
                 response = client.post(
                     "/auth/login",
                     data={
-                        "username": "user",
-                        "password": "password",
+                        "username": username,
+                        "password": password,
                     },
                 )
                 assert response.status_code == HTTPStatus.NO_CONTENT
                 assert b"" == response.data
                 assert session["user_id"]
-            stabilized_user = get_user_by_name("user")
+            stabilized_user = get_user_by_name(username)
             assert stabilized_user["password_hash"] == new_user["password_hash"]
 
     @staticmethod
@@ -109,20 +113,22 @@ def test_logout(client):
 class TestChangePassword:
     @staticmethod
     def test_success(client, new_user):
-        new_user(username="user", password="password")
+        username = "user"
+        password = "niceandlonggoodpassword"
+        new_user(username, password)
         with client:
             client.post(
                 "/auth/login",
                 data={
-                    "username": "user",
-                    "password": "password",
+                    "username": username,
+                    "password": password,
                 },
             )
             response = client.post(
                 "/auth/password",
                 data={
-                    "old_password": "password",
-                    "new_password": "asufficientlylongandstrongpassword",
+                    "old_password": password,
+                    "new_password": "anewsufficientlylongandstrongpassword",
                 },
             )
             assert response.status_code == HTTPStatus.NO_CONTENT
@@ -130,39 +136,43 @@ class TestChangePassword:
 
     @staticmethod
     def test_passwords_same(client, new_user):
-        new_user(username="user", password="areallylongandstrongpassword")
+        username = "user"
+        password = "niceandlonggoodpassword"
+        new_user(username, password)
         with client:
             client.post(
                 "/auth/login",
                 data={
-                    "username": "user",
-                    "password": "areallylongandstrongpassword",
+                    "username": username,
+                    "password": password,
                 },
             )
             response = client.post(
                 "/auth/password",
                 data={
-                    "old_password": "areallylongandstrongpassword",
-                    "new_password": "areallylongandstrongpassword",
+                    "old_password": password,
+                    "new_password": password,
                 },
             )
             assert response.status_code == HTTPStatus.BAD_REQUEST
 
     @staticmethod
     def test_password_too_short(client, new_user):
-        new_user(username="user", password="areallylongandstrongpassword")
+        username = "user"
+        password = "niceandlonggoodpassword"
+        new_user(username, password)
         with client:
             client.post(
                 "/auth/login",
                 data={
-                    "username": "user",
-                    "password": "areallylongandstrongpassword",
+                    "username": username,
+                    "password": password,
                 },
             )
             response = client.post(
                 "/auth/password",
                 data={
-                    "old_password": "areallylongandstrongpassword",
+                    "old_password": password,
                     "new_password": "2short",
                 },
             )
@@ -170,12 +180,13 @@ class TestChangePassword:
 
     @staticmethod
     def test_no_session_cookie(client, new_user):
-        new_user(username="user", password="areallylongandstrongpassword")
+        password = "niceandlonggoodpassword"
+        new_user(password=password)
         with client:
             response = client.post(
                 "/auth/password",
                 data={
-                    "old_password": "areallylongandstrongpassword",
+                    "old_password": password,
                     "new_password": "2short",
                 },
             )
@@ -183,13 +194,15 @@ class TestChangePassword:
 
     @staticmethod
     def test_bad_password(client, new_user):
-        new_user(username="user", password="areallylongandstrongpassword")
+        username = "user"
+        password = "niceandlonggoodpassword"
+        new_user(username, password)
         with client:
             client.post(
                 "/auth/login",
                 data={
-                    "username": "user",
-                    "password": "areallylongandstrongpassword",
+                    "username": username,
+                    "password": password,
                 },
             )
             response = client.post(

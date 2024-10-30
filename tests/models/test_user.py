@@ -1,5 +1,6 @@
 from pymysql.err import IntegrityError
 
+from app.constants import MIN_PASSWORD_LENGTH
 from app.db import get_db
 from app.models.user import get_user_by_id, get_user_by_name
 
@@ -17,11 +18,21 @@ class TestNewUserCommand:
         cli_runner.invoke(args=f"user delete {username}")
 
     @staticmethod
-    def test_create_custom_password(cli_runner):
+    def test_create_custom_password_success(cli_runner):
         username = "foo"
-        password = "password"
+        password = "sufficientlystrongpassword"
         result = cli_runner.invoke(args=f"user create {username} {password}")
         assert f"User {username}'s {password=}" in result.output
+
+    @staticmethod
+    def test_create_custom_password_failure(cli_runner):
+        username = "foo"
+        password = "2short"
+        result = cli_runner.invoke(args=f"user create {username} {password}")
+        assert isinstance(result.exception, ValueError)
+        assert f"Password must be at least {MIN_PASSWORD_LENGTH} characters long." == str(
+            result.exception
+        )
 
     @staticmethod
     def test_delete(cli_runner):

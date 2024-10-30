@@ -3,17 +3,15 @@ from http import HTTPStatus
 from argon2.exceptions import VerifyMismatchError
 from flask import Blueprint, abort, g, request, session
 
+from app.constants import PASSWORD_HASHER
 from app.models.user import (
     get_user_by_id,
     get_user_by_name,
     update_user_last_login,
-    update_user_password_hash,
+    update_user_password,
 )
-from app.utils import PASSWORD_HASHER
 
 blueprint = Blueprint("auth", __name__, url_prefix="/auth")
-
-MIN_PASSWORD_LENGTH = 12
 
 
 @blueprint.post("/login")
@@ -30,7 +28,7 @@ def login():
     except VerifyMismatchError:
         abort(HTTPStatus.UNAUTHORIZED)
     if PASSWORD_HASHER.check_needs_rehash(password_hash):
-        update_user_password_hash(user["id"], PASSWORD_HASHER.hash(password))
+        update_user_password(user["id"], password)
     session["user_id"] = user["id"]
     session["last_login"] = user["last_login"]
     update_user_last_login(user["id"])
@@ -52,17 +50,18 @@ def change_password():
     new_password = request.form["new_password"]
     if old_password == new_password:
         return ("Old and new password can not be the same.", HTTPStatus.BAD_REQUEST)
-    if len(new_password) < MIN_PASSWORD_LENGTH:
-        return (
-            f"Password must be at least {MIN_PASSWORD_LENGTH} characters long.",
-            HTTPStatus.BAD_REQUEST,
-        )
     user = get_user_by_id(user_id)
     try:
         PASSWORD_HASHER.verify(user["password_hash"], old_password)
     except VerifyMismatchError:
         abort(HTTPStatus.UNAUTHORIZED)
-    update_user_password_hash(user_id, PASSWORD_HASHER.hash(new_password))
+    try:
+        update_user_password(user_id, new_password)
+    except ValueError as err:
+        return (
+            str(err),
+            HTTPStatus.BAD_REQUEST,
+        )
     return ("", HTTPStatus.NO_CONTENT)
 
 
