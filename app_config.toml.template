@@ -1,0 +1,5 @@
+# Place me in `instance` folder as app_config.toml
+SECRET_KEY = ""
+DATABASE = ""
+DATABASE_USER = ""
+DATABASE_PASSWORD = ""
