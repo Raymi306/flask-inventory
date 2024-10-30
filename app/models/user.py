@@ -53,7 +53,7 @@ def update_user_last_login(id_):
 
 def new_user(name, password):
     password_hash = PASSWORD_HASHER.hash(password)
-    script = "INSERT INTO user " "(username, password_hash) " "VALUES (%s, %s);"
+    script = "INSERT INTO user (username, password_hash) VALUES (%s, %s);"
     db = get_db()
     with db.cursor() as cursor:
         cursor.execute(script, (name, password_hash))
