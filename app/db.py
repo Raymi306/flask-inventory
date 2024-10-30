@@ -30,7 +30,7 @@ def init_db():
     with current_app.open_resource("models/schema.sql") as file_obj:
         with db.cursor() as cursor:
             script = file_obj.read().decode("utf8")
-            cursor.execute(script, None)
+            cursor.execute(script)
     db.commit()
 
 
