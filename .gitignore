@@ -1,4 +1,5 @@
 instance/*
+!instance/README.md
 
 venv
 
