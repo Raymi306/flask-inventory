@@ -1,8 +1,9 @@
-from . import user
+from . import item, user
 
-all_modules = (user,)
+all_modules = (user, item)
 
 
 def setup_app(app):
     for module in all_modules:
-        module.setup_app(app)
+        if setup_func := getattr(module, "setup_app", None):
+            setup_func(app)

@@ -21,8 +21,9 @@ class User(BaseModel):
 
 
 class UserQueryManager(DatabaseQueryManager):
-    get_user_by_name = f"SELECT {', '.join(User.model_fields)} FROM user WHERE username=%s;"
-    get_user_by_id = f"SELECT {', '.join(User.model_fields)} FROM user WHERE id=%s;"
+    get_all_users = f"SELECT {', '.join(User.model_fields)} FROM user;"
+    get_user_by_name = f"SELECT {', '.join(User.model_fields)} FROM user WHERE username = %s;"
+    get_user_by_id = f"SELECT {', '.join(User.model_fields)} FROM user WHERE id = %s;"
     update_user_password = "UPDATE user SET password_hash = %s WHERE id = %s;"
     update_user_last_login = "UPDATE user SET last_login = CURRENT_TIMESTAMP() WHERE id = %s;"
     create_user = (
@@ -32,6 +33,10 @@ class UserQueryManager(DatabaseQueryManager):
 
 
 QUERY_MANAGER = UserQueryManager()
+
+
+def get_users():
+    return QUERY_MANAGER.get_all_users()
 
 
 def get_user_by_name(name):

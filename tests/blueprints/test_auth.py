@@ -25,8 +25,8 @@ class TestLogin:
             )
             assert response.status_code == HTTPStatus.NO_CONTENT
             assert b"" == response.data
-            assert session["user_id"]
-            assert session["last_login"] is None
+            assert session["user"]
+            assert session["user"]["last_login"] is None
 
             # idempotent
             response = client.post(
@@ -38,8 +38,8 @@ class TestLogin:
             )
             assert response.status_code == HTTPStatus.NO_CONTENT
             assert b"" == response.data
-            assert session["user_id"]
-            assert isinstance(session["last_login"], datetime)
+            assert session["user"]
+            assert isinstance(session["user"]["last_login"], datetime)
 
     @staticmethod
     def test_hasher_changed(app, client, new_user):
@@ -61,7 +61,7 @@ class TestLogin:
                 )
                 assert response.status_code == HTTPStatus.NO_CONTENT
                 assert b"" == response.data
-                assert session["user_id"]
+                assert session["user"]
             new_user = get_user_by_name(username)
             assert original_user["password_hash"] != new_user["password_hash"]
             with client:
@@ -74,7 +74,7 @@ class TestLogin:
                 )
                 assert response.status_code == HTTPStatus.NO_CONTENT
                 assert b"" == response.data
-                assert session["user_id"]
+                assert session["user"]
             stabilized_user = get_user_by_name(username)
             assert stabilized_user["password_hash"] == new_user["password_hash"]
 
@@ -90,24 +90,24 @@ class TestLogin:
                 },
             )
             assert response.status_code == HTTPStatus.UNAUTHORIZED
-            assert "user_id" not in session
+            assert "user" not in session
 
 
 def test_logout(client):
     with client.session_transaction() as presession:
-        presession["user_id"] = 1
+        presession["user"] = {"id": 1}
 
     with client:
         response = client.delete("/auth/logout")
         assert response.status_code == HTTPStatus.NO_CONTENT
         assert b"" == response.data
-        assert "user_id" not in session
+        assert "user" not in session
 
         # idempotent
         response = client.delete("/auth/logout")
         assert response.status_code == HTTPStatus.NO_CONTENT
         assert b"" == response.data
-        assert "user_id" not in session
+        assert "user" not in session
 
 
 class TestChangePassword:

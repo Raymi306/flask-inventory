@@ -10,6 +10,7 @@ from app.models.user import (
     update_user_last_login,
     update_user_password,
 )
+from app.utils import login_required
 
 blueprint = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -29,8 +30,11 @@ def login():
         abort(HTTPStatus.UNAUTHORIZED)
     if PASSWORD_HASHER.check_needs_rehash(password_hash):
         update_user_password(user["id"], password)
-    session["user_id"] = user["id"]
-    session["last_login"] = user["last_login"]
+    session["user"] = {
+        "id": user["id"],
+        "last_login": user["last_login"],
+        "username": user["username"],
+    }
     update_user_last_login(user["id"])
     return ("", HTTPStatus.NO_CONTENT)
 
@@ -42,14 +46,13 @@ def logout():
 
 
 @blueprint.post("/password")
+@login_required
 def change_password():
-    user_id = session.get("user_id")
-    if not user_id:
-        abort(HTTPStatus.UNAUTHORIZED)
     old_password = request.form["old_password"]
     new_password = request.form["new_password"]
     if old_password == new_password:
         return ("Old and new password can not be the same.", HTTPStatus.BAD_REQUEST)
+    user_id = g.user["id"]
     user = get_user_by_id(user_id)
     try:
         PASSWORD_HASHER.verify(user["password_hash"], old_password)
@@ -67,7 +70,7 @@ def change_password():
 
 @blueprint.before_app_request
 def load_current_user():
-    if user_id := session.get("user_id"):
-        g.user = user_id
+    if user := session.get("user"):
+        g.user = user
     else:
         g.user = None

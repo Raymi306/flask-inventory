@@ -4,6 +4,10 @@ from app.db import get_db
 from app.utils import snake_to_camel
 
 
+class NotFoundError(Exception):
+    pass
+
+
 def _call_commit(self, *args):
     db = get_db()
     with db.cursor() as cursor:
@@ -18,11 +22,11 @@ def _call_fetchone(self, *args):
         return cursor.fetchone()
 
 
-def _call_fetchmany(self, *args):
+def _call_fetchall(self, *args):
     db = get_db()
     with db.cursor() as cursor:
         cursor.execute(self.query, args)
-        return cursor.fetchmany()
+        return cursor.fetchall()
 
 
 class DatabaseQuery:
@@ -30,10 +34,11 @@ class DatabaseQuery:
         self.query = query
 
     def __new__(cls, name, query):
-        if name.startswith("get"):
+        # order sensitive!
+        if name.startswith("get_all"):
+            call_func = _call_fetchall
+        elif name.startswith("get"):
             call_func = _call_fetchone
-        elif name.startswith("get_many"):
-            call_func = _call_fetchmany
         elif name.startswith("create") or name.startswith("update") or name.startswith("delete"):
             call_func = _call_commit
         else:

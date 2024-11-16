@@ -2,7 +2,7 @@ from pymysql.err import IntegrityError
 
 from app.constants import MIN_PASSWORD_LENGTH
 from app.db import get_db
-from app.models.user import get_user_by_id, get_user_by_name
+from app.models.user import get_user_by_id, get_user_by_name, get_users
 
 
 class TestNewUserCommand:
@@ -23,6 +23,7 @@ class TestNewUserCommand:
         password = "sufficientlystrongpassword"
         result = cli_runner.invoke(args=f"user create {username} {password}")
         assert f"User {username}'s {password=}" in result.output
+        cli_runner.invoke(args=f"user delete {username}")
 
     @staticmethod
     def test_create_custom_password_failure(cli_runner):
@@ -43,6 +44,7 @@ class TestNewUserCommand:
         cli_runner.invoke(args=f"user create {username}")
         result = cli_runner.invoke(args=f"user create {username}")
         assert isinstance(result.exception, IntegrityError)
+        cli_runner.invoke(args=f"user delete {username}")
 
 
 def test_get_user_by_id(app, new_user):
@@ -67,3 +69,15 @@ def test_get_user_by_name(app, new_user):
             expected_user = cursor.fetchone()
         result = get_user_by_name(username)
         assert expected_user == result
+
+
+def test_get_users(app, new_user):
+    with app.app_context():
+        assert not get_users()
+
+    num_users = 2
+    for i in range(num_users):
+        new_user(str(i))
+
+    with app.app_context():
+        assert len(get_users()) == num_users
