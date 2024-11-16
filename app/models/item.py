@@ -1,8 +1,6 @@
 import json
 from datetime import datetime
 
-from flask import g
-from flask.cli import AppGroup
 from pydantic import BaseModel
 
 from app.models.model import DatabaseQueryManager, NotFoundError
@@ -117,7 +115,7 @@ def create_item(user_id, name, description=None, quantity=0, unit=None):
                 "description": description,
                 "quantity": quantity,
                 "unit": unit,
-            }
+            },
         },
     )
     QUERY_MANAGER.create_item(name, description, quantity, unit, json.dumps(revisions))
@@ -160,7 +158,7 @@ def update_item(id_, user_id, name, description, quantity, unit):
                 "description": description,
                 "quantity": quantity,
                 "unit": unit,
-            }
+            },
         }
     )
     QUERY_MANAGER.update_item(name, description, quantity, unit, revisions, id_)

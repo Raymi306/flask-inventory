@@ -4,7 +4,12 @@ import pytest
 from flask import session
 
 from app.db import get_db
-from app.models.item import create_item, create_item_comment, create_item_tag, create_item_tag_association
+from app.models.item import (
+    create_item,
+    create_item_comment,
+    create_item_tag,
+    create_item_tag_association,
+)
 
 
 @pytest.mark.parametrize(
@@ -15,9 +20,18 @@ from app.models.item import create_item, create_item_comment, create_item_tag, c
         ("item3", None, 0, "gallons", nullcontext()),
         ("item4", "description", 0, None, nullcontext()),
         ("item1", None, -1, None, pytest.raises(ValueError)),
-    )
+    ),
 )
-def test_create_item(app, client, new_authenticated_user, name, description, quantity, unit, error_context,):  # noqa: PLR0913
+def test_create_item(
+    app,
+    client,
+    new_authenticated_user,
+    name,
+    description,
+    quantity,
+    unit,
+    error_context,
+):
     expected_obj = {
         "name": name,
         "description": description,
@@ -55,7 +69,11 @@ def test_create_item_comment(app, client, new_item, new_authenticated_user):
             created_obj = cursor.fetchone()
             created_obj.pop("id")
             created_obj.pop("revisions")
-            assert created_obj == {"user_id": session["user"]["id"], "item_id": item_id, "text": text}
+            assert created_obj == {
+                "user_id": session["user"]["id"],
+                "item_id": item_id,
+                "text": text,
+            }
             cursor.execute("DELETE FROM item_comment WHERE item_id = %s", (item_id,))
         db.commit()
 

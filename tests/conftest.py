@@ -66,7 +66,9 @@ def new_authenticated_user(app, new_user):
                 "password": password,
             },
         )
+
     yield _inner
+
 
 @pytest.fixture
 def new_item(app):
