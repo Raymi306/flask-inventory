@@ -54,7 +54,8 @@ class ItemQueryManager(DatabaseQueryManager):
         # "LEFT JOIN item_tag ON item_tag.id = item_tag_junction.item_tag_id "
         # "ORDER BY item_id ASC;"
     )
-    update_item = "UPDATE item SET (name, description, quantity, unit, revisions) VALUES (%s, %s, %s, %s, %s) WHERE id = %s;"
+    get_item_by_id = f"SELECT {', '.join(Item.model_fields)} from item WHERE id = %s"
+    update_item = "UPDATE item SET name = %s, description = %s, quantity = %s, unit = %s, revisions = %s WHERE id = %s;"
 
 
 QUERY_MANAGER = ItemQueryManager()
@@ -144,11 +145,11 @@ def create_item_tag_association(item_id, item_tag_id):
     QUERY_MANAGER.create_item_tag_association(item_id, item_tag_id)
 
 
-def update_item(id_, user_id, name, description, quantity, unit):
+def update_item(id_, user_id, name, description, quantity, unit):  # noqa PLR0913
     existing_item = QUERY_MANAGER.get_item_by_id(id_)
     if existing_item is None:
         raise NotFoundError
-    revisions = existing_item["revisions"]
+    revisions = json.loads(existing_item["revisions"])
     revisions.append(
         {
             "user_id": user_id,
@@ -161,4 +162,4 @@ def update_item(id_, user_id, name, description, quantity, unit):
             },
         }
     )
-    QUERY_MANAGER.update_item(name, description, quantity, unit, revisions, id_)
+    QUERY_MANAGER.update_item(name, description, quantity, unit, json.dumps(revisions), id_)
