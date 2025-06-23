@@ -2,4 +2,3 @@ argon2-cffi
 flask
 pydantic
 pymysql[rsa]
-tomli

@@ -1,5 +1,5 @@
-import json
 from datetime import datetime
+import json
 
 from pydantic import BaseModel
 
@@ -12,7 +12,14 @@ class Item(BaseModel):
     description: str | None
     quantity: int
     unit: str | None
-    revisions: dict
+
+
+ItemRevision = revision_factory(Item)
+
+
+@query
+def get_item_by_id(query, item_id):
+    pass
 
 
 class Tag(BaseModel):
@@ -24,11 +31,14 @@ class TagComment(BaseModel):
     id: int
     user_id: int
     item_id: int
-    text: int
-    revisions: dict
+    text: str
 
 
-class ItemQueryManager(DatabaseQueryManager):
+TagCommentRevision = revision_factory(TagComment)
+
+
+# Remove me
+class ItemManager(DatabaseQueryManager):
     create_item = "INSERT INTO item (name, description, quantity, unit, revisions) VALUES (%s, %s, %s, %s, %s);"
     create_item_comment = (
         "INSERT INTO item_comment (user_id, item_id, text, revisions) VALUES (%s, %s, %s, %s);"

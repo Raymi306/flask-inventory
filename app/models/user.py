@@ -32,7 +32,7 @@ class UserQueryManager(DatabaseQueryManager):
     delete_user_by_name = "DELETE FROM user WHERE username = %s;"
 
 
-QUERY_MANAGER = UserQueryManager()
+#QUERY_MANAGER = UserQueryManager()
 
 
 def get_users():

@@ -8,13 +8,13 @@ from app.models import user as user_model
 
 @pytest.fixture(scope="session")
 def app():
-    app = create_app()
-    app.config.update(
-        {
-            "TESTING": True,
-        }
-    )
-    app.config["DATABASE"] = app.config["DATABASE"] + "_test"
+    config = {
+        "DATABASE": "inventory_test",
+        "DATABASE_USER": "inventory_test_user",
+        "DATABASE_PASSWORD": "inventory_test_password",
+        "TESTING": True,  # flask.palletsprojects.com/en/stable/config/#TESTING
+    }
+    app = create_app(config)
     return app
 
 

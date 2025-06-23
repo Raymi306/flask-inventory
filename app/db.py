@@ -8,6 +8,8 @@ db_cli = AppGroup("db")
 
 
 def get_db():
+    # TODO cache me?
+    # NOTE should I always just get db off of g?
     if "db" not in g:
         g.db = pymysql.connect(
             host="localhost",
