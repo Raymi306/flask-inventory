@@ -1,144 +1,364 @@
-import json
-from contextlib import nullcontext
+from dataclasses import asdict
+from unittest.mock import patch
 
 import pytest
-from flask import session
+from pymysql.err import IntegrityError
 
-from app.db import get_db
+from app.db import get_db_connection
 from app.models.item import (
     create_item,
     create_item_comment,
     create_item_tag,
     create_item_tag_association,
-    update_item,
+    delete_item_by_id,
+    delete_item_comment_by_id,
+    delete_item_tag_association,
+    delete_item_tag_by_id,
+    get_all_item_comment_revisions_by_item_comment_id,
+    get_all_item_revisions_by_item_id,
+    get_all_item_tags,
+    get_all_items,
+    get_item_by_id,
+    get_joined_item_by_id,
+    update_item_by_id,
+    update_item_comment_by_id,
 )
 
 
-@pytest.mark.parametrize(
-    "name, description, quantity, unit, error_context",
-    (
-        ("item1", None, 0, None, nullcontext()),
-        ("item2", "description", 0, "gallons", nullcontext()),
-        ("item3", None, 0, "gallons", nullcontext()),
-        ("item4", "description", 0, None, nullcontext()),
-        ("item1", None, -1, None, pytest.raises(ValueError)),
-    ),
-)
-def test_create_item(
+class TestCreateItem:
+    @staticmethod
+    @pytest.mark.parametrize(
+        "name, description, quantity, unit",
+        (
+            ("item1", None, 0, None),
+            ("item2", "description", 0, "gallons"),
+            ("item3", None, 0, "gallons"),
+            ("item4", "description", 0, None),
+        ),
+    )
+    def test_success(
+        app,
+        new_user,
+        name,
+        description,
+        quantity,
+        unit,
+    ):
+        expected_item = {
+            "name": name,
+            "description": description,
+            "quantity": quantity,
+            "unit": unit,
+        }
+        with app.app_context():
+            user_id = new_user()
+            item_id = create_item(user_id, **expected_item)
+
+            item = asdict(get_item_by_id(item_id))
+            id_ = item.pop("id")
+            assert id_
+            assert item == expected_item
+
+            revisions = get_all_item_revisions_by_item_id(item_id)
+            assert len(revisions) == 1
+            revision = asdict(revisions[0])
+            assert revision["_user_id"] == user_id
+            assert revision["id"] == item_id
+
+            delete_item_by_id(item_id)
+
+    @staticmethod
+    def test_unique_constraints(app, new_user, new_item):
+        with app.app_context():
+            user_id = new_user()
+            new_item(user_id, "duplicate")
+            with pytest.raises(IntegrityError):
+                create_item(user_id, "duplicate")
+
+    @staticmethod
+    def test_transaction_integrity(app, new_user):
+        with app.app_context():
+            user_id = new_user()
+
+            with (
+                pytest.raises(RuntimeError),
+                patch("app.models.item.item.create_item_revision") as mock_func,
+            ):
+                mock_func.side_effect = RuntimeError("Induced failure.")
+                create_item(user_id, "name")
+
+            assert len(get_all_items()) == 0
+
+
+class TestUpdateItemById:
+    @staticmethod
+    def test_success(
+        app,
+        new_user,
+        new_item,
+    ):
+        initial_item = {
+            "name": "initial_name",
+            "description": "initial_description",
+            "quantity": 0,
+            "unit": "initial_unit",
+        }
+        with app.app_context():
+            user_id = new_user()
+            item_id = new_item(user_id, **initial_item)
+            expected_item = {
+                "name": "updated_name",
+                "description": "updated_description",
+                "quantity": 1,
+                "unit": "updated_unit",
+            }
+            update_item_by_id(user_id, item_id, **expected_item)
+            item = asdict(get_item_by_id(item_id))
+            id_ = item.pop("id")
+            assert id_
+            assert item == expected_item
+
+            revisions = get_all_item_revisions_by_item_id(item_id)
+            assert len(revisions) == 2
+
+            previous = asdict(revisions[0])
+            assert previous.pop("_user_id") == user_id
+            assert previous.pop("id") == item_id
+            assert previous.pop("_id")
+            assert previous.pop("_datetime")
+            assert previous == initial_item
+
+            current = asdict(revisions[1])
+            assert current.pop("_user_id") == user_id
+            assert current.pop("id") == item_id
+            assert current.pop("_id")
+            assert current.pop("_datetime")
+            assert current == expected_item
+
+            delete_item_by_id(item_id)
+
+    @staticmethod
+    def test_transaction_integrity(
+        app,
+        new_user,
+        new_item,
+    ):
+        with app.app_context():
+            expected_item = {
+                "name": "initial_name",
+                "description": "description",
+                "quantity": 1,
+                "unit": "unit",
+            }
+            user_id = new_user()
+            item_id = new_item(user_id, **expected_item)
+
+            with (
+                pytest.raises(RuntimeError),
+                patch("app.models.item.item.create_item_revision") as mock_func,
+            ):
+                mock_func.side_effect = RuntimeError("Induced failure.")
+                expected_item["name"] = "updated_name"
+                update_item_by_id(user_id, item_id, **expected_item)
+
+            assert asdict(get_item_by_id(item_id))["name"] == "initial_name"
+
+
+def test_delete_item_by_id(
     app,
-    client,
-    new_authenticated_user,
-    name,
-    description,
-    quantity,
-    unit,
-    error_context,
+    new_user,
+    new_item,
 ):
-    expected_obj = {
-        "name": name,
-        "description": description,
-        "quantity": quantity,
-        "unit": unit,
-    }
-    user_name = "user"
-    with app.app_context(), error_context, client:
-        new_authenticated_user(client, user_name)
-        create_item(session["user"]["id"], **expected_obj)
-        db = get_db()
-        with db.cursor() as cursor:
-            cursor.execute("SELECT * FROM item WHERE name = %s", (name,))
-            created_obj = cursor.fetchone()
-            created_obj.pop("id")
-            created_obj.pop("revisions")
-            assert created_obj == expected_obj
-            cursor.execute("DELETE FROM item WHERE name = %s", (name,))
-        db.commit()
+    with app.app_context():
+        user_id = new_user()
+        item_id = new_item(user_id)
+        assert get_item_by_id(item_id) is not None
+        delete_item_by_id(item_id)
+        assert get_item_by_id(item_id) is None
 
 
-def test_create_item_comment(app, client, new_item, new_authenticated_user):
-    item_name = "item"
-    user_name = "user"
-    text = "a fancy comment"
-    with app.app_context(), client:
-        new_authenticated_user(client, user_name)
-        new_item(session["user"]["id"], item_name)
-        db = get_db()
-        with db.cursor() as cursor:
-            cursor.execute("SELECT id FROM item WHERE name = %s", (item_name,))
-            item_id = cursor.fetchone()["id"]
-            create_item_comment(session["user"]["id"], item_id, text)
-            cursor.execute("SELECT * FROM item_comment WHERE item_id = %s", (item_id,))
-            created_obj = cursor.fetchone()
-            created_obj.pop("id")
-            created_obj.pop("revisions")
-            assert created_obj == {
-                "user_id": session["user"]["id"],
+def test_get_joined_item_by_id(
+    app,
+    new_user,
+    new_item,
+    new_item_comment,
+    new_item_tag,
+    new_item_tag_association,
+):
+    with app.app_context():
+        user_id = new_user()
+        item_id = new_item(user_id)
+        comment_1_id = new_item_comment(user_id, item_id, "comment1")
+        comment_2_id = new_item_comment(user_id, item_id, "comment2")
+        tag_1_id = new_item_tag(user_id, "tag1")
+        tag_2_id = new_item_tag(user_id, "tag2")
+        new_item_tag_association(item_id, tag_1_id)
+        new_item_tag_association(item_id, tag_2_id)
+        result = get_joined_item_by_id(item_id)
+        assert result.id == item_id
+        assert len(result.comments) == 2
+        assert result.comments[0].id == comment_1_id
+        assert result.comments[1].id == comment_2_id
+        assert len(result.tags) == 2
+        assert result.tags[0].id == tag_1_id
+        assert result.tags[1].id == tag_2_id
+
+
+class TestCreateItemComment:
+    @staticmethod
+    def test_success(app, new_item, new_user):
+        text = "a fancy comment"
+        with app.app_context():
+            user_id = new_user()
+            item_id = new_item(user_id)
+            expected_item_comment = {
+                "user_id": user_id,
                 "item_id": item_id,
                 "text": text,
             }
-            cursor.execute("DELETE FROM item_comment WHERE item_id = %s", (item_id,))
-        db.commit()
+            create_item_comment(**expected_item_comment)
+
+            conn = get_db_connection()
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT * FROM item_comment WHERE item_id = %s", (item_id,))
+                item_comment = cursor.fetchone()
+                item_comment_id = item_comment.pop("id")
+                assert item_comment == expected_item_comment
+
+                revisions = get_all_item_comment_revisions_by_item_comment_id(item_comment_id)
+                assert len(revisions) == 1
+                revision = asdict(revisions[0])
+                assert revision["_user_id"] == user_id
+                assert revision["id"] == item_comment_id
+
+            delete_item_comment_by_id(item_comment_id)
+
+    @staticmethod
+    def test_transaction_integrity(app, new_item, new_user):
+        text = "a fancy comment"
+        with app.app_context():
+            user_id = new_user()
+            item_id = new_item(user_id)
+
+            with (
+                pytest.raises(RuntimeError),
+                patch("app.models.item.item.create_item_comment_revision") as mock_func,
+            ):
+                mock_func.side_effect = RuntimeError("Induced failure.")
+                create_item_comment(user_id, item_id, text)
+
+            conn = get_db_connection()
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT * FROM item_comment WHERE item_id = %s", (item_id,))
+                item_comment = cursor.fetchone()
+                assert item_comment is None
 
 
-def test_create_item_tag(app, client):
+class TestUpdateItemCommentById:
+    @staticmethod
+    def test_success(
+        app,
+        new_user,
+        new_item,
+        new_item_comment,
+    ):
+        with app.app_context():
+            user_id = new_user()
+            item_id = new_item(user_id)
+            item_comment_id = new_item_comment(user_id, item_id, "initial")
+            update_item_comment_by_id(user_id, item_comment_id, "updated")
+
+            conn = get_db_connection()
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT * FROM item_comment WHERE item_id = %s", (item_id,))
+                item_comment = cursor.fetchone()
+                assert item_comment["text"] == "updated"
+
+            revisions = get_all_item_comment_revisions_by_item_comment_id(item_comment_id)
+            assert len(revisions) == 2
+
+            previous = asdict(revisions[0])
+            assert previous.pop("_user_id") == user_id
+            assert previous.pop("id") == item_comment_id
+            assert previous.pop("_id")
+            assert previous.pop("_datetime")
+            assert previous["text"] == "initial"
+
+            current = asdict(revisions[1])
+            assert current.pop("_user_id") == user_id
+            assert current.pop("id") == item_comment_id
+            assert current.pop("_id")
+            assert current.pop("_datetime")
+            assert current["text"] == "updated"
+
+    @staticmethod
+    def test_transaction_integrity(
+        app,
+        new_user,
+        new_item,
+        new_item_comment,
+    ):
+        with app.app_context():
+            user_id = new_user()
+            item_id = new_item(user_id)
+            item_comment_id = new_item_comment(user_id, item_id, "initial")
+
+            with (
+                pytest.raises(RuntimeError),
+                patch("app.models.item.item.create_item_comment_revision") as mock_func,
+            ):
+                mock_func.side_effect = RuntimeError("Induced failure.")
+                update_item_comment_by_id(user_id, item_comment_id, "updated")
+
+            conn = get_db_connection()
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT * FROM item_comment WHERE item_id = %s", (item_id,))
+                item_comment = cursor.fetchone()
+                assert item_comment["text"] == "initial"
+
+
+def test_delete_item_comment_by_id(
+    app,
+    new_user,
+    new_item,
+    new_item_comment,
+):
+    with app.app_context():
+        user_id = new_user()
+        item_id = new_item(user_id)
+        item_comment_id = new_item_comment(user_id, item_id, "initial")
+
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT * FROM item_comment WHERE item_id = %s", (item_id,))
+            assert cursor.fetchone() is not None
+            delete_item_comment_by_id(item_comment_id)
+            cursor.execute("SELECT * FROM item_comment WHERE item_id = %s", (item_id,))
+            assert cursor.fetchone() is None
+
+
+def test_create_item_tag(app):
     tag_name = "tag"
-    with app.app_context(), client:
-        create_item_tag(tag_name)
-        db = get_db()
-        with db.cursor() as cursor:
-            cursor.execute("SELECT id FROM item_tag WHERE name = %s", (tag_name,))
-            assert cursor.fetchone()
-            cursor.execute("DELETE FROM item_tag WHERE name = %s", (tag_name,))
-        db.commit()
+    with app.app_context():
+        tag_id = create_item_tag(tag_name)
+        tags = get_all_item_tags()
+        assert len(tags) == 1
+        assert tags[0].name == tag_name
+        delete_item_tag_by_id(tag_id)
 
 
-def test_create_item_tag_association(app, client, new_item, new_authenticated_user):
-    item_name = "item"
-    user_name = "user"
+def test_create_item_tag_association(app, new_user, new_item, new_item_tag):
     tag_name = "tag"
-    with app.app_context(), client:
-        new_authenticated_user(client, user_name)
-        new_item(session["user"]["id"], item_name)
-        create_item_tag(tag_name)
-        db = get_db()
+    with app.app_context():
+        user_id = new_user()
+        item_id = new_item(user_id)
+        tag_id = new_item_tag(tag_name)
+        create_item_tag_association(item_id, tag_id)
+        db = get_db_connection()
         with db.cursor() as cursor:
-            cursor.execute("SELECT id FROM item WHERE name = %s", (item_name,))
-            item_id = cursor.fetchone()["id"]
-            cursor.execute("SELECT id FROM item_tag WHERE name = %s", (tag_name,))
-            tag_id = cursor.fetchone()["id"]
-            create_item_tag_association(item_id, tag_id)
-            cursor.execute("DELETE FROM item_tag_junction WHERE item_tag_id = %s", (tag_id,))
-            cursor.execute("DELETE FROM item_tag WHERE name = %s", (tag_name,))
-        db.commit()
-
-
-def test_update_item(app, client, new_item, new_authenticated_user):
-    expected_obj = {
-        "name": "item",
-        "description": "description",
-        "quantity": 1,
-        "unit": None,
-    }
-    expected_changed_obj = {
-        "name": "item2",
-        "description": "description2",
-        "quantity": 2,
-        "unit": "gallons",
-    }
-    user_name = "user"
-    with app.app_context(), client:
-        new_authenticated_user(client, user_name)
-        new_item(session["user"]["id"], **expected_obj)
-        db = get_db()
-        with db.cursor() as cursor:
-            cursor.execute("SELECT * FROM item WHERE name = %s", (expected_obj["name"],))
-            created_obj = cursor.fetchone()
-            update_item(created_obj["id"], session["user"]["id"], **expected_changed_obj)
-            cursor.execute("SELECT * FROM item WHERE name = %s", (expected_changed_obj["name"],))
-            updated_obj = cursor.fetchone()
-            updated_obj.pop("id")
-            revisions = json.loads(updated_obj.pop("revisions"))
-            assert len(revisions) == 2  # noqa PLR2004
-            assert updated_obj == expected_changed_obj
-            cursor.execute("DELETE FROM item WHERE name = %s", (expected_changed_obj["name"],))
-        db.commit()
+            cursor.execute("SELECT item_id, item_tag_id FROM item_tag_junction")
+            results = cursor.fetchall()
+            assert len(results) == 1
+            assert results[0]["item_id"] == item_id
+            assert results[0]["item_tag_id"] == tag_id
+        delete_item_tag_association(item_id, tag_id)

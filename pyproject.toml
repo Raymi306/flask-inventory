@@ -1,0 +1,20 @@
+[tool.pytest.ini_options]
+addopts = "--random-order-bucket=global"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["B", "E4", "E7", "E9", "F", "C90", "I", "N", "UP", "RUF", "PL", "W", "FURB", "TRY"]
+
+ignore = [
+    "PLR0913", # too-many-arguments
+    "TRY003", # raise-vanilla-args
+]
+
+[tool.ruff.lint.per-file-ignores]
+# F401 unused-import
+"__init__.py" = ["F401"]
+"tests/conftest.py" = ["F401"]
+# PLR2004 magic-value-comparison
+"tests/*" = ["PLR2004"]

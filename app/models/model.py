@@ -1,45 +1,24 @@
-# TODO separate model and db stuff a bit?
-from abc import ABC
+import inspect
+from dataclasses import dataclass
+from datetime import datetime
+from functools import partial, wraps
+from pathlib import Path
 
-from pydantic import create_model
-
-from app.db import get_db
-from app.utils import snake_to_camel
-
+from app.db import get_db_connection
 
 VALID_PREFIXES = ("get_all", "get", "create", "update", "delete")
 
 
-class DatabaseError(Exception):
-    pass
+@dataclass
+class RevisionMixin:
+    _id: int
+    _user_id: int
+    _datetime: datetime
 
-
-class NotFoundError(DatabaseError):
-    pass
-
-
-def revision_factory(cls):
-    return create_model(
-        user_id=int,
-        time=datetime,
-        __base__=cls,
-    )
-
-import inspect
-from functools import wraps
-from pathlib import Path
 
 def query(func):
-    # TODO break into testable pieces
-    # NOTE is this cached..?
-    db = get_db()
-
-    wrapped_file_path = Path(inspect.getfile(func))
-    query_path = wrapped_file_path.parent / f"{func.__name__}.sql"
-    with open(query_path, "r") as fileobj:
-        query_str = fileobj.read()
-
     # order sensitive!
+    name = func.__name__
     if name.startswith("get_all"):
         call_func = _call_fetchall
     elif name.startswith("get"):
@@ -47,50 +26,45 @@ def query(func):
     elif name.startswith("create") or name.startswith("update") or name.startswith("delete"):
         call_func = _call_commit
     else:
-        raise TypeError(
-            # TODO improve me
-            f"Name must start with {','.join(VALID_PREFIXES)}"
+        raise ValueError(
+            f"Function name {name} is invalid, must start with {','.join(VALID_PREFIXES)}"
         )
+
+    wrapped_file_path = Path(inspect.getfile(func))
+    query_path = wrapped_file_path.parent / f"{name}.sql"
+    with open(query_path) as fileobj:
+        query_str = fileobj.read().rstrip("\n")
 
     @wraps(func)
     def inner(*args, **kwargs):
-        # TODO pass in a function preloaded with query?
-        # would partial be useful here somehow?
-        return func(query_str, *args, **kwargs)
+        partial_kwargs = {}
+        if "autocommit" in kwargs:
+            partial_kwargs["autocommit"] = kwargs.pop("autocommit")
+        return func(partial(call_func, query_str, **partial_kwargs), *args, **kwargs)
+
     return inner
 
 
-class DatabaseQuery:
-    def __init__(self, _, query):
-        self.query = query
-        self.db = get_db()
+def _call_commit(query, *args, autocommit=True):
+    conn = get_db_connection()
+    context = {}
+    with conn.cursor() as cursor:
+        cursor.execute(query, args)
+        context["lastrowid"] = cursor.lastrowid
+    if autocommit:
+        conn.commit()
+    return context
 
-    def __new__(cls, name, query):
-        new_cls = type(f"{snake_to_camel(name)}{cls.__name__}", (cls,), {"__call__": call_func})
-        return super().__new__(new_cls)
 
-def _call_commit(db, *args):
-    with self.db.cursor() as cursor:
-        cursor.execute(self.query, args)
-    self.db.commit()
-
-def _call_fetchone(db, *args):
-    with self.db.cursor() as cursor:
-        cursor.execute(self.query, args)
+def _call_fetchone(query, *args):
+    conn = get_db_connection()
+    with conn.cursor() as cursor:
+        cursor.execute(query, args)
         return cursor.fetchone()
 
-def _call_fetchall(db, *args):
-    with self.db.cursor() as cursor:
-        cursor.execute(self.query, args)
+
+def _call_fetchall(query, *args):
+    conn = get_db_connection()
+    with conn.cursor() as cursor:
+        cursor.execute(query, args)
         return cursor.fetchall()
-
-
-class DatabaseQueryManager(ABC):
-    def __new__(cls, *args, **kwargs):
-        for key, value in cls.__dict__.items():
-            if key.startswith("_"):
-                pass
-            for prefix in VALID_PREFIXES:
-                if key.startswith(prefix):
-                    setattr(cls, key, DatabaseQuery(key, value))
-        return super().__new__(cls)

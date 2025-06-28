@@ -2,6 +2,7 @@ from datetime import datetime
 from http import HTTPStatus
 from unittest.mock import patch
 
+import pytest
 from argon2 import PasswordHasher
 from flask import session
 
@@ -45,7 +46,7 @@ class TestLogin:
     def test_hasher_changed(app, client, new_user):
         username = "user"
         password = "niceandlonggoodpassword"
-        with patch("app.models.user.PASSWORD_HASHER") as mock_hasher:
+        with patch("app.models.user.user.PASSWORD_HASHER") as mock_hasher:
             hasher = PasswordHasher(memory_cost=100)
             mock_hasher.hash = hasher.hash
             new_user(username, password)
@@ -63,7 +64,7 @@ class TestLogin:
                 assert b"" == response.data
                 assert session["user"]
             new_user = get_user_by_name(username)
-            assert original_user["password_hash"] != new_user["password_hash"]
+            assert original_user.password_hash != new_user.password_hash
             with client:
                 response = client.post(
                     "/auth/login",
@@ -76,10 +77,10 @@ class TestLogin:
                 assert b"" == response.data
                 assert session["user"]
             stabilized_user = get_user_by_name(username)
-            assert stabilized_user["password_hash"] == new_user["password_hash"]
+            assert stabilized_user.password_hash == new_user.password_hash
 
     @staticmethod
-    def test_failure(client, new_user):
+    def test_empty_form_fields(client, new_user):
         new_user()
         with client:
             response = client.post(
@@ -112,18 +113,18 @@ def test_logout(client):
 
 class TestChangePassword:
     @staticmethod
-    def test_success(client, new_user):
+    @pytest.mark.parametrize(
+        "reset_required",
+        (
+            True,
+            False,
+        ),
+    )
+    def test_success(client, new_authenticated_user, reset_required):
         username = "user"
         password = "niceandlonggoodpassword"
-        new_user(username, password)
         with client:
-            client.post(
-                "/auth/login",
-                data={
-                    "username": username,
-                    "password": password,
-                },
-            )
+            new_authenticated_user(client, username, password, reset_required)
             response = client.post(
                 "/auth/password",
                 data={
@@ -135,18 +136,11 @@ class TestChangePassword:
             assert b"" == response.data
 
     @staticmethod
-    def test_passwords_same(client, new_user):
+    def test_passwords_same(client, new_authenticated_user):
         username = "user"
         password = "niceandlonggoodpassword"
-        new_user(username, password)
         with client:
-            client.post(
-                "/auth/login",
-                data={
-                    "username": username,
-                    "password": password,
-                },
-            )
+            new_authenticated_user(client, username, password)
             response = client.post(
                 "/auth/password",
                 data={
@@ -157,18 +151,11 @@ class TestChangePassword:
             assert response.status_code == HTTPStatus.BAD_REQUEST
 
     @staticmethod
-    def test_password_too_short(client, new_user):
+    def test_password_too_short(client, new_authenticated_user):
         username = "user"
         password = "niceandlonggoodpassword"
-        new_user(username, password)
         with client:
-            client.post(
-                "/auth/login",
-                data={
-                    "username": username,
-                    "password": password,
-                },
-            )
+            new_authenticated_user(client, username, password)
             response = client.post(
                 "/auth/password",
                 data={
@@ -179,7 +166,7 @@ class TestChangePassword:
             assert response.status_code == HTTPStatus.BAD_REQUEST
 
     @staticmethod
-    def test_no_session_cookie(client, new_user):
+    def test_not_authenticated(client, new_user):
         password = "niceandlonggoodpassword"
         new_user(password=password)
         with client:
@@ -187,7 +174,7 @@ class TestChangePassword:
                 "/auth/password",
                 data={
                     "old_password": password,
-                    "new_password": "2short",
+                    "new_password": "niceandlonggoodreplacementpassword",
                 },
             )
             assert response.status_code == HTTPStatus.UNAUTHORIZED

@@ -1,8 +1,7 @@
 import tomllib
-
 from flask import Flask
 
-from . import db, models
+from . import db, error_handlers, models
 from .blueprints import blueprints
 
 
@@ -22,6 +21,7 @@ def create_app(config=None):
 
     db.setup_app(app)
     models.setup_app(app)
+    error_handlers.setup_app(app)
 
     for blueprint in blueprints:
         app.register_blueprint(blueprint)

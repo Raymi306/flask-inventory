@@ -1,1 +1,1 @@
-INSERT INTO item (name, description, quantity, unit, revisions) VALUES (%s, %s, %s, %s, %s);
+INSERT INTO item (name, description, quantity, unit) VALUES (%s, %s, %s, %s);
