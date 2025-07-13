@@ -5,6 +5,7 @@ from flask import Blueprint, abort, g, request, session
 from pydantic import BaseModel
 
 from app.constants import PASSWORD_HASHER
+from app.models.types import NewPassword
 from app.models.user import (
     get_user_by_id,
     get_user_by_name,
@@ -54,7 +55,7 @@ def logout():
 
 class ChangePasswordForm(BaseModel):
     old_password: str
-    new_password: str
+    new_password: NewPassword
 
 
 @blueprint.post("/password")
@@ -83,7 +84,6 @@ def change_password():
     return ("", HTTPStatus.NO_CONTENT)
 
 
-# TODO shouldn't this be a little broader than this blueprint
 @blueprint.before_app_request
 def load_current_user():
     if user := session.get("user"):

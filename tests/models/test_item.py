@@ -18,6 +18,7 @@ from app.models.item import (
     get_all_item_revisions_by_item_id,
     get_all_item_tags,
     get_all_items,
+    get_all_joined_items,
     get_item_by_id,
     get_joined_item_by_id,
     update_item_by_id,
@@ -28,36 +29,35 @@ from app.models.item import (
 class TestCreateItem:
     @staticmethod
     @pytest.mark.parametrize(
-        "name, description, quantity, unit",
+        "function_args, expected",
         (
-            ("item1", None, 0, None),
-            ("item2", "description", 0, "gallons"),
-            ("item3", None, 0, "gallons"),
-            ("item4", "description", 0, None),
+            (
+                {"name": "item", "description": None, "quantity": 0, "unit": None},
+                {"name": "item", "description": None, "quantity": 0, "unit": None},
+            ),
+            (
+                {"name": "item", "description": "description", "quantity": 1, "unit": "gallons"},
+                {"name": "item", "description": "description", "quantity": 1, "unit": "gallons"},
+            ),
+            (
+                {"name": "item"},
+                {"name": "item", "description": None, "quantity": 0, "unit": None},
+            ),
         ),
     )
     def test_success(
         app,
         new_user,
-        name,
-        description,
-        quantity,
-        unit,
+        function_args,
+        expected,
     ):
-        expected_item = {
-            "name": name,
-            "description": description,
-            "quantity": quantity,
-            "unit": unit,
-        }
         with app.app_context():
             user_id = new_user()
-            item_id = create_item(user_id, **expected_item)
+            item_id = create_item(user_id, **function_args)
 
             item = asdict(get_item_by_id(item_id))
-            id_ = item.pop("id")
-            assert id_
-            assert item == expected_item
+            assert item.pop("id") == item_id
+            assert item == expected
 
             revisions = get_all_item_revisions_by_item_id(item_id)
             assert len(revisions) == 1
@@ -202,6 +202,43 @@ def test_get_joined_item_by_id(
         assert len(result.tags) == 2
         assert result.tags[0].id == tag_1_id
         assert result.tags[1].id == tag_2_id
+
+
+def test_get_all_joined_items(
+    app,
+    new_user,
+    new_item,
+    new_item_comment,
+    new_item_tag,
+    new_item_tag_association,
+):
+    with app.app_context():
+        user_id = new_user()
+
+        tag_1_id = new_item_tag(user_id, "tag1")
+        tag_2_id = new_item_tag(user_id, "tag2")
+        tag_3_id = new_item_tag(user_id, "tag3")
+
+        item_1_id = new_item(user_id, "item1")
+        new_item_comment(user_id, item_1_id, "comment1")
+        new_item_comment(user_id, item_1_id, "comment2")
+        new_item_tag_association(item_1_id, tag_1_id)
+        new_item_tag_association(item_1_id, tag_2_id)
+
+        item_2_id = new_item(user_id, "item2")
+        new_item_comment(user_id, item_2_id, "comment3")
+        new_item_tag_association(item_2_id, tag_2_id)
+        new_item_tag_association(item_2_id, tag_3_id)
+
+        result = get_all_joined_items()
+
+        assert result[0].id == item_1_id
+        assert len(result[0].tags) == 2
+        assert len(result[0].comments) == 2
+
+        assert result[1].id == item_2_id
+        assert len(result[1].tags) == 2
+        assert len(result[1].comments) == 1
 
 
 class TestCreateItemComment:

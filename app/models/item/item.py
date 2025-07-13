@@ -1,5 +1,6 @@
 from dataclasses import astuple, dataclass
 from datetime import datetime, timezone
+from itertools import groupby
 
 from app.db import transaction
 from app.models.model import RevisionMixin, query
@@ -68,11 +69,51 @@ def get_item_by_id(fire, item_id):
 
 
 def get_joined_item_by_id(item_id):
+    # discuss compromises
     item = get_item_by_id(item_id)
     comments = get_all_item_comments_by_item_id(item_id)
     tags = get_all_item_tags_by_item_id(item_id)
     final = ItemFull(*astuple(item), comments, tags)
     return final
+
+
+@query
+def get_all_joined_items(fire):
+    # discuss compromises
+
+    # For examining impact of the double outer join on number of rows returned:
+    # results = fire()
+    # print(f"num rows: {len(results)}")
+    # grouped = groupby(fire(), lambda row: row["id"])
+    grouped = groupby(fire(), lambda row: row["id"])
+
+    items = []
+    for item_id, group in grouped:
+        tags = {}
+        comments = {}
+        for row in group:
+            tags[row["tag_id"]] = ItemTag(
+                row["tag_id"],
+                row["tag_name"],
+            )
+            comments[row["comment_id"]] = ItemComment(
+                row["comment_id"],
+                row["comment_user_id"],
+                item_id,
+                row["comment_text"],
+            )
+        items.append(
+            ItemFull(
+                item_id,
+                row["name"],
+                row["description"],
+                row["quantity"],
+                row["unit"],
+                list(comments.values()),
+                list(tags.values()),
+            )
+        )
+    return items
 
 
 @query

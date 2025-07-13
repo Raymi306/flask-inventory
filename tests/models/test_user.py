@@ -1,6 +1,6 @@
+from pydantic_core import ValidationError
 from pymysql.err import IntegrityError
 
-from app.constants import MIN_PASSWORD_LENGTH
 from app.models.user import get_all_users, get_user_by_id, get_user_by_name
 
 
@@ -28,10 +28,7 @@ class TestUserCliCommands:
         username = "foo3"
         password = "2short"
         result = cli_runner.invoke(args=f"user create {username} {password}")
-        assert isinstance(result.exception, ValueError)
-        assert f"Password must be at least {MIN_PASSWORD_LENGTH} characters long." == str(
-            result.exception
-        )
+        assert isinstance(result.exception, ValidationError)
 
     @staticmethod
     def test_create_duplicate_usernames(cli_runner):

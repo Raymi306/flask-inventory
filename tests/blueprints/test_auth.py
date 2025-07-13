@@ -180,7 +180,7 @@ class TestChangePassword:
             assert response.status_code == HTTPStatus.UNAUTHORIZED
 
     @staticmethod
-    def test_bad_password(client, new_user):
+    def test_bad_old_password(client, new_user):
         username = "user"
         password = "niceandlonggoodpassword"
         new_user(username, password)

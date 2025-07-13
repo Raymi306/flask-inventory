@@ -16,6 +16,7 @@ from .item import (
     get_all_item_revisions_by_item_id,
     get_all_item_tags,
     get_all_items,
+    get_all_joined_items,
     get_item_by_id,
     get_joined_item_by_id,
     update_item_by_id,

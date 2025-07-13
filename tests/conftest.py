@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 from app.app import create_app

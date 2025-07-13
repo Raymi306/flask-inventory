@@ -5,8 +5,9 @@ import click
 from flask.cli import AppGroup
 from werkzeug.security import gen_salt
 
-from app.constants import MIN_PASSWORD_LENGTH, PASSWORD_HASHER
+from app.constants import PASSWORD_HASHER
 from app.models.model import query
+from app.models.types import validate_new_password
 
 user_cli = AppGroup("user")
 
@@ -45,8 +46,6 @@ def get_user_by_id(fire, user_id):
 
 @query
 def update_user_password(fire, user_id, password):
-    if len(password) < MIN_PASSWORD_LENGTH:
-        raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters long.")
     password_hash = PASSWORD_HASHER.hash(password)
     fire(password_hash, user_id)
 
@@ -58,8 +57,6 @@ def update_user_last_login(fire, user_id):
 
 @query
 def create_user(fire, name, password, password_reset_required=True):
-    if len(password) < MIN_PASSWORD_LENGTH:
-        raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters long.")
     password_hash = PASSWORD_HASHER.hash(password)
     return fire(name, password_hash, password_reset_required)["lastrowid"]
 
@@ -85,6 +82,8 @@ def new_user_command(name, password):
         password_reset_required = True
         password = gen_salt(24)
         click.echo(f"User {name}'s {password=}")
+    else:
+        validate_new_password(password)
     create_user(name, password, password_reset_required)
     click.echo("Done.")
 

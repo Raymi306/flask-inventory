@@ -1,5 +1,5 @@
 [tool.pytest.ini_options]
-addopts = "--random-order-bucket=global"
+addopts = "--random-order-bucket=global --import-mode=importlib"
 
 [tool.ruff]
 line-length = 100
