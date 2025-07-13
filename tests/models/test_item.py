@@ -109,7 +109,6 @@ class TestUpdateItemById:
             "unit": "initial_unit",
         }
         with app.app_context():
-            print("TEST START")
             user_id = new_user()
             item_id = new_item(user_id, **initial_item)
             expected_item = {
@@ -150,11 +149,10 @@ class TestUpdateItemById:
         new_item,
     ):
         with app.app_context():
-            print("TEST START")
-            # DEBUG
-            # items = get_all_items()
-            # if items:
-            # breakpoint()
+            # with broken transactions, the error:
+            # Record has changed since last read in table 'item'
+            # was reproducible here by adding a "get" retrieval as below:
+            assert not get_all_items()
             expected_item = {
                 "name": "initial_name",
                 "description": "description",
@@ -225,10 +223,6 @@ def test_get_all_joined_items(
     new_item_tag_association,
 ):
     with app.app_context():
-        # DEBUG
-        # items = get_all_items()
-        # if items:
-        # breakpoint()
         user_id = new_user()
 
         tag_1_id = new_item_tag(user_id, "tag1")

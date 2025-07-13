@@ -36,6 +36,7 @@ def get_db_connection():
 def transaction():
     conn = get_db_connection()
     try:
+        conn.begin()
         yield conn
         conn.commit()
     except Exception:
