@@ -37,6 +37,7 @@ def transaction():
     conn = get_db_connection()
     try:
         yield conn
+        conn.commit()
     except Exception:
         conn.rollback()
         raise

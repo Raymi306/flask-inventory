@@ -1,7 +1,13 @@
+import pytest
 from pydantic_core import ValidationError
 from pymysql.err import IntegrityError
 
 from app.models.user import get_all_users, get_user_by_id, get_user_by_name
+
+
+@pytest.fixture(autouse=True)
+def clean(truncate_all):
+    pass
 
 
 class TestUserCliCommands:

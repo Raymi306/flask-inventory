@@ -42,3 +42,22 @@ def client(app):
 @pytest.fixture
 def cli_runner(app):
     return app.test_cli_runner()
+
+
+@pytest.fixture
+def truncate_all(app):
+    with app.app_context():
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
+            query = (
+                "TRUNCATE item_comment_revision;"
+                "TRUNCATE item_comment;"
+                "TRUNCATE item_tag_junction;"
+                "TRUNCATE item_tag;"
+                "TRUNCATE item_revision;"
+                "TRUNCATE item;"
+                "TRUNCATE user;"
+            )
+            cursor.execute(query)
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")

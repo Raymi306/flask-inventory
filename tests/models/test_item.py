@@ -26,6 +26,11 @@ from app.models.item import (
 )
 
 
+@pytest.fixture(autouse=True)
+def clean(truncate_all):
+    pass
+
+
 class TestCreateItem:
     @staticmethod
     @pytest.mark.parametrize(
@@ -104,6 +109,7 @@ class TestUpdateItemById:
             "unit": "initial_unit",
         }
         with app.app_context():
+            print("TEST START")
             user_id = new_user()
             item_id = new_item(user_id, **initial_item)
             expected_item = {
@@ -144,6 +150,11 @@ class TestUpdateItemById:
         new_item,
     ):
         with app.app_context():
+            print("TEST START")
+            # DEBUG
+            # items = get_all_items()
+            # if items:
+            # breakpoint()
             expected_item = {
                 "name": "initial_name",
                 "description": "description",
@@ -202,6 +213,7 @@ def test_get_joined_item_by_id(
         assert len(result.tags) == 2
         assert result.tags[0].id == tag_1_id
         assert result.tags[1].id == tag_2_id
+        assert not result.has_revisions
 
 
 def test_get_all_joined_items(
@@ -213,6 +225,10 @@ def test_get_all_joined_items(
     new_item_tag_association,
 ):
     with app.app_context():
+        # DEBUG
+        # items = get_all_items()
+        # if items:
+        # breakpoint()
         user_id = new_user()
 
         tag_1_id = new_item_tag(user_id, "tag1")
@@ -220,7 +236,22 @@ def test_get_all_joined_items(
         tag_3_id = new_item_tag(user_id, "tag3")
 
         item_1_id = new_item(user_id, "item1")
-        new_item_comment(user_id, item_1_id, "comment1")
+
+        expected_item = {
+            "name": "updated_name",
+            "description": "updated_description",
+            "quantity": 1,
+            "unit": "updated_unit",
+        }
+
+        # introduce a revision to item 1
+        update_item_by_id(user_id, item_1_id, **expected_item)
+
+        comment_1_id = new_item_comment(user_id, item_1_id, "comment1")
+
+        # introduce a revision to comment 1
+        update_item_comment_by_id(user_id, comment_1_id, "updated_text")
+
         new_item_comment(user_id, item_1_id, "comment2")
         new_item_tag_association(item_1_id, tag_1_id)
         new_item_tag_association(item_1_id, tag_2_id)
@@ -235,6 +266,8 @@ def test_get_all_joined_items(
         assert result[0].id == item_1_id
         assert len(result[0].tags) == 2
         assert len(result[0].comments) == 2
+        assert result[0].has_revisions
+        assert result[0].comments[0].has_revisions
 
         assert result[1].id == item_2_id
         assert len(result[1].tags) == 2

@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 from app.blueprints.utils import login_required
 from app.models.item import (
     create_item,
+    get_all_item_tags,
+    get_all_joined_items,
 )
 
 blueprint = Blueprint("item", __name__, url_prefix="/item")
@@ -29,4 +31,10 @@ def create_item_view():
 @blueprint.get("/")
 @login_required
 def get_items():
-    pass
+    return get_all_joined_items()
+
+
+@blueprint.get("/tags/")
+@login_required
+def get_item_tags():
+    return get_all_item_tags()

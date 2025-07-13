@@ -9,6 +9,11 @@ from flask import session
 from app.models.user import get_user_by_name
 
 
+@pytest.fixture(autouse=True)
+def clean(truncate_all):
+    pass
+
+
 class TestLogin:
     @staticmethod
     def test_success(app, client, new_user):

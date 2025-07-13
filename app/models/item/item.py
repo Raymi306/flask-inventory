@@ -41,16 +41,22 @@ class ItemCommentRevision(RevisionMixin):
 
 
 @dataclass
+class ItemCommentFull(ItemComment):
+    has_revisions: bool
+
+
+@dataclass
 class ItemFull(Item):
     comments: list[ItemComment]
     tags: list[ItemTag]
+    has_revisions: bool
 
 
 @query
 def create_item(fire, user_id, name, description=None, quantity=0, unit=None):
     with transaction():
         item_id = fire(name, description, quantity, unit, autocommit=False)["lastrowid"]
-        create_item_revision(user_id, item_id, name, description, quantity, unit)
+        create_item_revision(user_id, item_id, name, description, quantity, unit, autocommit=False)
         return item_id
 
 
@@ -73,7 +79,8 @@ def get_joined_item_by_id(item_id):
     item = get_item_by_id(item_id)
     comments = get_all_item_comments_by_item_id(item_id)
     tags = get_all_item_tags_by_item_id(item_id)
-    final = ItemFull(*astuple(item), comments, tags)
+    revisions = get_all_item_revisions_by_item_id(item_id)
+    final = ItemFull(*astuple(item), comments, tags, len(revisions) > 1)
     return final
 
 
@@ -84,6 +91,7 @@ def get_all_joined_items(fire):
     # For examining impact of the double outer join on number of rows returned:
     # results = fire()
     # print(f"num rows: {len(results)}")
+    # breakpoint()
     # grouped = groupby(fire(), lambda row: row["id"])
     grouped = groupby(fire(), lambda row: row["id"])
 
@@ -96,11 +104,12 @@ def get_all_joined_items(fire):
                 row["tag_id"],
                 row["tag_name"],
             )
-            comments[row["comment_id"]] = ItemComment(
+            comments[row["comment_id"]] = ItemCommentFull(
                 row["comment_id"],
                 row["comment_user_id"],
                 item_id,
                 row["comment_text"],
+                bool(row["item_comment_has_revisions"]),
             )
         items.append(
             ItemFull(
@@ -111,6 +120,7 @@ def get_all_joined_items(fire):
                 row["unit"],
                 list(comments.values()),
                 list(tags.values()),
+                bool(row["item_has_revisions"]),
             )
         )
     return items
@@ -132,7 +142,7 @@ def get_all_item_revisions_by_item_id(fire, item_id):
 def update_item_by_id(fire, user_id, item_id, name, description, quantity, unit):
     with transaction():
         fire(name, description, quantity, unit, item_id, autocommit=False)
-        create_item_revision(user_id, item_id, name, description, quantity, unit)
+        create_item_revision(user_id, item_id, name, description, quantity, unit, autocommit=False)
 
 
 @query
@@ -144,7 +154,7 @@ def delete_item_by_id(fire, item_id):
 def create_item_comment(fire, user_id, item_id, text):
     with transaction():
         comment_id = fire(user_id, item_id, text, autocommit=False)["lastrowid"]
-        create_item_comment_revision(user_id, comment_id, text)
+        create_item_comment_revision(user_id, comment_id, text, autocommit=False)
         return comment_id
 
 
@@ -171,7 +181,7 @@ def get_all_item_comment_revisions_by_item_comment_id(fire, item_comment_id):
 def update_item_comment_by_id(fire, user_id, item_comment_id, text):
     with transaction():
         fire(text, item_comment_id, autocommit=False)
-        create_item_comment_revision(user_id, item_comment_id, text)
+        create_item_comment_revision(user_id, item_comment_id, text, autocommit=False)
 
 
 @query
@@ -209,45 +219,3 @@ def delete_item_tag_by_id(fire, tag_id):
 @query
 def delete_item_tag_association(fire, item_id, tag_id):
     fire(item_id, tag_id)
-
-
-# TODO deleteme
-class ItemManager:
-    pass
-
-
-# TODO deleteme
-def _map_items(items, item_comments):
-    # good lord
-    result = {}
-    tags = []
-    if not items:
-        return []
-    last_id = items[0]["item_id"]
-    for item in items:
-        current_id = item["item_id"]
-        if current_id == last_id:
-            tags.append({"id": item["tag_id"], "name": item["tag_name"]})
-        else:
-            result[current_id] = {
-                "id": item["item_id"],
-                "name": item["item_name"],
-                "description": item["item_description"],
-                "quantity": item["item_quantity"],
-                "unit": item["item_unit"],
-                "revisions": item["item_revisions"],
-                "tags": tags.copy(),
-                "comments": [],
-            }
-            tags = []
-    for comment in item_comments:
-        result[comment["item_id"]]["comments"].append(
-            {
-                "id": comment["id"],
-                "user_id": comment["user_id"],
-                "item_id": comment["item_id"],
-                "text": comment["text"],
-                "revisions": comment["revisions"],
-            }
-        )
-    return result.values()
