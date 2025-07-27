@@ -1,0 +1,5 @@
+argon2-cffi
+flask
+flask-cors
+pydantic
+pymysql[rsa]
