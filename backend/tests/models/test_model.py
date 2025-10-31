@@ -31,7 +31,7 @@ class TestQueryDecorator:
 
             @query
             def get_nosuchfile(fire):
-                pass
+                pass # pragma: no cover
 
     @staticmethod
     def test_bad_function_name(app):
@@ -39,4 +39,4 @@ class TestQueryDecorator:
 
             @query
             def testfunc(fire):
-                pass
+                pass # pragma: no cover

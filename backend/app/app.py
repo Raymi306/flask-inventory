@@ -1,3 +1,5 @@
+from dataclasses import asdict, is_dataclass
+
 import tomllib
 from flask import Flask
 from flask_cors import CORS
@@ -6,8 +8,15 @@ from . import db, error_handlers, models
 from .blueprints import blueprints
 
 
+class FlaskApp(Flask):
+    def make_response(self, rv):
+        if is_dataclass(rv):
+            rv = asdict(rv)
+        return super().make_response(rv)
+
+
 def create_app(config=None):
-    app = Flask(__name__, instance_relative_config=True)
+    app = FlaskApp(__name__, instance_relative_config=True)
     CORS(app, supports_credentials=True)
 
     if config is None:

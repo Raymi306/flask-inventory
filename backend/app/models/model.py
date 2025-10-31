@@ -20,7 +20,8 @@ class RevisionMixin:
 def query(func):
     # order sensitive!
     name = func.__name__
-    if name.startswith("get_all"):
+    module = func.__module__.split(".")[-1]
+    if name.startswith("get_all") or name.startswith("get_joined"):
         call_func = _call_fetchall
     elif name.startswith("get"):
         call_func = _call_fetchone
@@ -32,7 +33,7 @@ def query(func):
         )
 
     wrapped_file_path = Path(inspect.getfile(func))
-    query_path = wrapped_file_path.parent / f"{name}.sql"
+    query_path = wrapped_file_path.parent / f"{module}_queries" / f"{name}.sql"
     with open(query_path) as fileobj:
         query_str = fileobj.read().rstrip("\n")
 
@@ -52,6 +53,7 @@ def _call_commit(query, *args, autocommit=True):
     with conn.cursor() as cursor:
         cursor.execute(query, args)
         context["lastrowid"] = cursor.lastrowid
+        context["rowcount"] = cursor.rowcount
     if autocommit:
         conn.commit()
     return context

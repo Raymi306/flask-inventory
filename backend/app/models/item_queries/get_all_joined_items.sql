@@ -9,7 +9,7 @@ item_comment.id AS comment_id, item_comment.user_id AS comment_user_id, item_com
 	SELECT COUNT(*) > 1 FROM item_comment_revision WHERE item_comment_revision.id = comment_id
 ) as item_comment_has_revisions
 FROM item
-JOIN item_tag_junction ON item_tag_junction.item_id = item.id
+LEFT JOIN item_tag_junction ON item_tag_junction.item_id = item.id
 LEFT JOIN item_tag ON item_tag.id = item_tag_junction.item_tag_id
 LEFT JOIN item_comment ON item_comment.item_id = item.id
 WHERE item.is_deleted = False

@@ -67,7 +67,7 @@ class TestLogin:
     def test_hasher_changed(app, client, new_user):
         username = "user"
         password = "niceandlonggoodpassword"
-        with patch("app.models.user.user.PASSWORD_HASHER") as mock_hasher:
+        with patch("app.models.user.PASSWORD_HASHER") as mock_hasher:
             hasher = PasswordHasher(memory_cost=100)
             mock_hasher.hash = hasher.hash
             new_user(username, password)

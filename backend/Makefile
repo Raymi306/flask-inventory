@@ -30,7 +30,10 @@ dockerdb-run-dev:
 dockerdb-stop-dev:
 	docker stop inventory-dev-mariadb
 
-
 .PHONY: dev
 dev:
 	flask --app app/app run --debug
+
+.PHONY: test
+test:
+	coverage run -m pytest
