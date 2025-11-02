@@ -516,7 +516,7 @@ class TestUpdateItemCommentDeletionFlag:
                 result = cursor.fetchone()
                 assert not result["is_deleted"]
 
-                update_item_comment_deletion_flag_by_id(item_comment_id, user_id)
+                update_item_comment_deletion_flag_by_id(user_id, item_comment_id)
 
                 cursor.execute("SELECT * FROM item_comment WHERE id = %s", (item_comment_id,))
                 result = cursor.fetchone()

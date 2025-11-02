@@ -192,7 +192,7 @@ def get_item_comment_by_id(fire, item_comment_id):
 
 
 @query
-def update_item_comment_deletion_flag_by_id(fire, item_comment_id, user_id):
+def update_item_comment_deletion_flag_by_id(fire, user_id, item_comment_id):
     with transaction():
         # TODO race condition
         original = get_item_comment_by_id(item_comment_id)

@@ -9,6 +9,7 @@ from app.blueprints.utils import login_required
 from app.db import NotFoundError
 from app.models.item import (
     create_item,
+    create_item_comment,
     create_item_tag,
     create_item_tag_association,
     get_all_item_tags,
@@ -18,10 +19,12 @@ from app.models.item import (
     get_item_tag_by_name,
     get_joined_item_by_id,
     update_item_by_id,
+    update_item_comment_by_id,
+    update_item_comment_deletion_flag_by_id,
     update_item_deletion_flag_by_id,
 )
 
-blueprint = Blueprint("item", __name__, url_prefix="/item")
+blueprint = Blueprint("item", __name__, url_prefix="/items")
 
 
 class ItemForm(BaseModel):
@@ -31,10 +34,19 @@ class ItemForm(BaseModel):
     unit: str | None = None
 
 
+class ItemTagForm(BaseModel):
+    name: str
+
+
+class ItemCommentForm(BaseModel):
+    text: str
+
+
 @blueprint.post("/")
 @login_required
 def create_item_():
     form = ItemForm(**request.form)
+    # TODO why model_dump?
     item_id = create_item(g.user["id"], *form.model_dump().values())
     return {"id": item_id}
 
@@ -66,8 +78,10 @@ def delete_item(item_id):
     return ("", HTTPStatus.NO_CONTENT)
 
 
-class ItemTagForm(BaseModel):
-    name: str
+@blueprint.get("/<item_id>/revision/")
+@login_required
+def get_item_revisions(item_id):
+    return get_all_item_revisions_by_origin_id(item_id)
 
 
 @blueprint.post("/<item_id>/tags/")
@@ -97,10 +111,41 @@ def get_item_tags():
     return get_all_item_tags()
 
 
-@blueprint.get("/<item_id>/revision/")
+# TODO untag item!
+# delete tag if no more references in junction table..?
+
+
+@blueprint.post("/<item_id>/comments/")
 @login_required
-def get_item_revisions(item_id):
-    return get_all_item_revisions_by_origin_id(item_id)
+def create_item_comment_(item_id):
+    form = ItemCommentForm(**request.form)
+
+    try:
+        comment_id = create_item_comment(g.user["id"], item_id, form.text)
+    except IntegrityError as err:
+        if "FOREIGN KEY" in str(err):
+            return ("", HTTPStatus.NOT_FOUND)
+
+    return {"id": comment_id}
+
+
+@blueprint.put("/comments/<comment_id>")
+@login_required
+def update_item_comment(comment_id):
+    form = ItemCommentForm(**request.form)
+    try:
+        update_item_comment_by_id(g.user["id"], comment_id, form.text)
+    except IntegrityError as err:
+        if "FOREIGN KEY" in str(err):
+            return ("", HTTPStatus.NOT_FOUND)
+    return ("", HTTPStatus.NO_CONTENT)
+
+
+@blueprint.delete("/comments/<comment_id>")
+@login_required
+def delete_item_comment(comment_id):
+    update_item_comment_deletion_flag_by_id(g.user["id"], comment_id)
+    return ("", HTTPStatus.NO_CONTENT)
 
 
 @blueprint.get("/<item_id>/comments/<comment_id>/revision/")

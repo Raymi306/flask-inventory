@@ -11,6 +11,6 @@ item_comment.id AS comment_id, item_comment.user_id AS comment_user_id, item_com
 FROM item
 LEFT JOIN item_tag_junction ON item_tag_junction.item_id = item.id
 LEFT JOIN item_tag ON item_tag.id = item_tag_junction.item_tag_id
-LEFT JOIN item_comment ON item_comment.item_id = item.id
+LEFT JOIN item_comment ON item_comment.item_id = item.id AND item_comment.is_deleted = False
 WHERE item.is_deleted = False
 ORDER BY item.id, item_tag.id, item_comment.id;

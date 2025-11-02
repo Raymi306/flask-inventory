@@ -7,6 +7,10 @@ venv
 *.pyc
 __pycache__/
 
+.coverage
+.coverage.*
+htmlcov/
+
 dist/
 build/
 *.egg-info/
