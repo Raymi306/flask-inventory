@@ -12,6 +12,7 @@ from app.models.item import (
     create_item_comment,
     create_item_tag,
     create_item_tag_association,
+    delete_item_tag_association,
     get_all_item_tags,
     get_all_item_comment_revisions_by_origin_id,
     get_all_item_revisions_by_origin_id,
@@ -45,7 +46,7 @@ class ItemCommentForm(BaseModel):
 @blueprint.post("/")
 @login_required
 def create_item_():
-    form = ItemForm(**request.form)
+    form = ItemForm(**request.json)
     # TODO why model_dump?
     item_id = create_item(g.user["id"], *form.model_dump().values())
     return {"id": item_id}
@@ -111,8 +112,12 @@ def get_item_tags():
     return get_all_item_tags()
 
 
-# TODO untag item!
-# delete tag if no more references in junction table..?
+@blueprint.delete("/<item_id>/tags/<tag_id>")
+@login_required
+# TODO delete tag if no more references in junction table..?
+def delete_item_tag_association_(item_id, tag_id):
+    delete_item_tag_association(item_id, tag_id)
+    return ("", HTTPStatus.NO_CONTENT)
 
 
 @blueprint.post("/<item_id>/comments/")
@@ -148,7 +153,9 @@ def delete_item_comment(comment_id):
     return ("", HTTPStatus.NO_CONTENT)
 
 
-@blueprint.get("/<item_id>/comments/<comment_id>/revision/")
+# TODO add typing to all parameters
+@blueprint.get("/comments/<int:comment_id>/revision/")
 @login_required
 def get_item_comment_revisions(comment_id):
-    return get_all_item_comment_revisions_by_origin_id(comment_id)
+    result = get_all_item_comment_revisions_by_origin_id(comment_id)
+    return result

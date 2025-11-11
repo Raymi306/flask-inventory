@@ -60,6 +60,15 @@ class TestCreateItem:
             assert response.status_code == HTTPStatus.BAD_REQUEST
             assert len(get_all_items()) == 0
 
+    def test_duplicate(client, new_authenticated_user, form_data):
+        with client:
+            new_authenticated_user(client)
+            response = client.post("/items/", data={"name": "item1"})
+            assert response.status_code == HTTPStatus.OK
+            response = client.post("/items/", data={"name": "item1"})
+            assert response.status_code == HTTPStatus.BAD_REQUEST
+            assert len(get_all_items()) == 0
+
     @staticmethod
     def test_unauthenticated(client):
         with client:
@@ -159,6 +168,51 @@ class TestGetItemTags:
         with client:
             response = client.get("/items/tags/")
             assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+
+class TestDeleteItemTagAssociation:
+    @staticmethod
+    def test_success(
+        client,
+        new_authenticated_user,
+        new_item,
+        new_item_tag,
+    ):
+        with client:
+            user_id = new_authenticated_user(client)
+            item_id = new_item(user_id)
+            assert not client.get(f"/items/{item_id}").json["tags"]
+            response = client.post(
+                f"/items/{item_id}/tags/",
+                data={"name": "foo"},
+            )
+            tag_id = response.json["id"]
+            assert client.get(f"/items/{item_id}").json["tags"]
+            response = client.delete(
+                f"/items/{item_id}/tags/{tag_id}",
+                data={"name": "foo"},
+            )
+            assert response.status_code == HTTPStatus.NO_CONTENT
+            assert not client.get(f"/items/{item_id}").json["tags"]
+
+    @staticmethod
+    def test_not_found(
+        client,
+        new_authenticated_user,
+    ):
+        with client:
+            user_id = new_authenticated_user(client)
+            response = client.delete(
+                "/items/1/tags/1",
+                data={"name": "foo"},
+            )
+
+    @staticmethod
+    def test_unauthenticated(client):
+        with client:
+            response = client.delete("/items/1/tags/1")
+            assert response.status_code == HTTPStatus.UNAUTHORIZED
+
 
 
 class TestUpdateItem:
@@ -344,14 +398,20 @@ class TestUpdateItemComment:
             )
             comment_id = response.json["id"]
             response = client.get(f"/items/{item_id}")
+
             assert response.json["comments"][0]["text"] == "foo"
+            assert response.json["comments"][0]["has_revisions"] == False
             response = client.put(
                 f"/items/comments/{comment_id}",
                 data={"text": "bar"},
             )
-            assert response.status_code ==HTTPStatus.NO_CONTENT
+            assert response.status_code == HTTPStatus.NO_CONTENT
             response = client.get(f"/items/{item_id}")
             assert response.json["comments"][0]["text"] == "bar"
+            assert response.json["comments"][0]["has_revisions"] == True
+            response = client.get(f"/items/comments/{comment_id}/revision/")
+            assert response.status_code == HTTPStatus.OK
+            assert len(response.json)
 
     @staticmethod
     def test_not_found(client, new_authenticated_user):

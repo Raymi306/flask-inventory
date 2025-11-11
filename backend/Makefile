@@ -20,6 +20,10 @@ dockerdb-stop-test:
 dockerdb-start-dev:
 	docker start inventory-dev-mariadb
 
+.PHONY: dockerdb-connect-dev
+dockerdb-connect-dev:
+	docker exec -it inventory-dev-mariadb mariadb -u inventory_dev_user -p
+
 .PHONY: dockerdb-run-dev
 dockerdb-run-dev:
 	docker run --detach --name inventory-dev-mariadb --env MARIADB_USER=inventory_dev_user\

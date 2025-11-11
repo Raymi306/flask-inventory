@@ -1,12 +1,15 @@
 import inspect
 from dataclasses import dataclass
 from datetime import datetime
+from enum import auto, StrEnum
 from functools import partial, wraps
 from pathlib import Path
 
+from flask import g
+
 from app.db import get_db_connection
 
-VALID_PREFIXES = ("get_all", "get", "create", "update", "delete")
+VALID_PREFIXES = ("get_all", "get_joined", "get", "create", "update", "delete")
 
 
 @dataclass
@@ -18,9 +21,11 @@ class RevisionMixin:
 
 
 def query(func):
-    # order sensitive!
     name = func.__name__
     module = func.__module__.split(".")[-1]
+    # these branches are order sensitive!
+    # make sure VALID_PREFIXES is up-to-date if editing
+    # TODO overengineer a solution to couple these things and obviate the need for these comments?
     if name.startswith("get_all") or name.startswith("get_joined"):
         call_func = _call_fetchall
     elif name.startswith("get"):
@@ -39,22 +44,19 @@ def query(func):
 
     @wraps(func)
     def inner(*args, **kwargs):
-        partial_kwargs = {}
-        if "autocommit" in kwargs:
-            partial_kwargs["autocommit"] = kwargs.pop("autocommit")
-        return func(partial(call_func, query_str, **partial_kwargs), *args, **kwargs)
+        return func(partial(call_func, query_str), *args, **kwargs)
 
     return inner
 
 
-def _call_commit(query, *args, autocommit=True):
+def _call_commit(query, *args):
     conn = get_db_connection()
     context = {}
     with conn.cursor() as cursor:
         cursor.execute(query, args)
         context["lastrowid"] = cursor.lastrowid
         context["rowcount"] = cursor.rowcount
-    if autocommit:
+    if not g.in_transaction:
         conn.commit()
     return context
 

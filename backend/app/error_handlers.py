@@ -2,17 +2,15 @@ from http import HTTPStatus
 
 from pydantic_core import ValidationError
 
-from app.db import NotFoundError
+from app.db import NotFoundError, DuplicateError
 
 
-def validation_error_handler(error):
-    return error.errors(include_url=False), HTTPStatus.BAD_REQUEST
-
-
-def not_found_error_handler(error):
-    return "", HTTPStatus.NOT_FOUND
-
+HANDLER_MAP = {
+    ValidationError: (lambda error: (error.errors(include_url=False), HTTPStatus.BAD_REQUEST)),
+    NotFoundError: (lambda _: ("", HTTPStatus.NOT_FOUND)),
+    DuplicateError: (lambda _: ("", HTTPStatus.CONFLICT)),
+}
 
 def setup_app(app):
-    app.register_error_handler(ValidationError, validation_error_handler)
-    app.register_error_handler(NotFoundError, not_found_error_handler)
+    for error_type, func in HANDLER_MAP.items():
+        app.register_error_handler(error_type, func)

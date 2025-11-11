@@ -2,7 +2,9 @@ from dataclasses import astuple, dataclass
 from datetime import datetime, timezone
 from itertools import groupby
 
-from app.db import transaction, NotFoundError
+from pymysql.err import IntegrityError
+
+from app.db import locked_tables, LockType, transaction, NotFoundError, DuplicateError
 from app.models.model import RevisionMixin, query
 
 
@@ -55,13 +57,18 @@ class ItemFull(Item):
 @query
 def create_item(fire, user_id, name, description=None, quantity=0, unit=None):
     with transaction():
-        item_id = fire(name, description, quantity, unit, autocommit=False)["lastrowid"]
-        create_item_revision(user_id, item_id, name, description, quantity, unit, False, autocommit=False)
+        try:
+            item_id = fire(name, description, quantity, unit)["lastrowid"]
+        except IntegrityError:
+            raise DuplicateError
+        create_item_revision(user_id, item_id, name, description, quantity, unit, False)
         return item_id
 
 
 @query
-def create_item_revision(fire, user_id, item_id, name, description, quantity, unit, is_deleted=False):
+def create_item_revision(
+    fire, user_id, item_id, name, description, quantity, unit, is_deleted=False
+):
     now = datetime.now(timezone.utc)
     return fire(user_id, now, item_id, name, description, quantity, unit, is_deleted)["lastrowid"]
 
@@ -113,9 +120,7 @@ def get_all_joined_items(fire):
 
     items = []
     for item_id, rows in grouped:
-        items.append(
-            make_joined_item(item_id, rows)
-        )
+        items.append(make_joined_item(item_id, rows))
     return items
 
 
@@ -145,10 +150,10 @@ def get_all_item_revisions_by_origin_id(fire, item_id):
 @query
 def update_item_by_id(fire, user_id, item_id, name, description, quantity, unit):
     with transaction():
-        result = fire(name, description, quantity, unit, item_id, autocommit=False)
+        result = fire(name, description, quantity, unit, item_id)
         if not result["rowcount"]:
             raise NotFoundError
-        create_item_revision(user_id, item_id, name, description, quantity, unit, False, autocommit=False)
+        create_item_revision(user_id, item_id, name, description, quantity, unit, False)
 
 
 @query
@@ -159,10 +164,12 @@ def delete_item_by_id(fire, item_id):
 
 @query
 def update_item_deletion_flag_by_id(fire, user_id, item_id):
-    with transaction():
-        # TODO race condition
+    with (
+        transaction(),
+        locked_tables(("item", LockType.WRITE), ("item_revision", LockType.WRITE)),
+    ):
         original = get_item_by_id(item_id)
-        fire(item_id, autocommit=False)
+        fire(item_id)
         create_item_revision(
             user_id,
             item_id,
@@ -171,15 +178,14 @@ def update_item_deletion_flag_by_id(fire, user_id, item_id):
             original.quantity,
             original.unit,
             is_deleted=True,
-            autocommit=False,
         )
 
 
 @query
 def create_item_comment(fire, user_id, item_id, text):
     with transaction():
-        comment_id = fire(user_id, item_id, text, autocommit=False)["lastrowid"]
-        create_item_comment_revision(user_id, comment_id, text, False, autocommit=False)
+        comment_id = fire(user_id, item_id, text)["lastrowid"]
+        create_item_comment_revision(user_id, comment_id, text, False)
         return comment_id
 
 
@@ -193,16 +199,17 @@ def get_item_comment_by_id(fire, item_comment_id):
 
 @query
 def update_item_comment_deletion_flag_by_id(fire, user_id, item_comment_id):
-    with transaction():
-        # TODO race condition
+    with (
+        transaction(),
+        locked_tables(("item_comment", LockType.WRITE), ("item_comment_revision", LockType.WRITE)),
+    ):
         original = get_item_comment_by_id(item_comment_id)
-        fire(item_comment_id, autocommit=False)
+        fire(item_comment_id)
         create_item_comment_revision(
             user_id,
             item_comment_id,
             original.text,
             is_deleted=True,
-            autocommit=False,
         )
 
 
@@ -227,8 +234,8 @@ def get_all_item_comment_revisions_by_origin_id(fire, item_comment_id):
 @query
 def update_item_comment_by_id(fire, user_id, item_comment_id, text):
     with transaction():
-        fire(text, item_comment_id, autocommit=False)
-        create_item_comment_revision(user_id, item_comment_id, text, False, autocommit=False)
+        fire(text, item_comment_id)
+        create_item_comment_revision(user_id, item_comment_id, text, False)
 
 
 @query
@@ -244,9 +251,6 @@ def create_item_tag(fire, name):
 @query
 def create_item_tag_association(fire, item_id, tag_id):
     fire(item_id, tag_id)
-
-
-# TODO create way to remove tag associations
 
 
 @query
